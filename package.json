@@ -10,6 +10,7 @@
     "migrate-mongo": "^8.1.4",
     "moment": "^2.29.1",
     "mongoose": "^5.11.18",
+    "node-telegram-bot-api": "^0.51.0",
     "react": "^17.0.1",
     "react-dom": "^17.0.1",
     "react-scripts": "4.0.3",

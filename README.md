@@ -7,6 +7,7 @@
 Create a `.env` file in the project root and assign environment variables:
 ```
 MONGO_DB_CONNECTION=mongodb://localhost:27017/YOUR_DB_NAME // mongo DB connection string
+TELEGRAM_BOT_API_TOKEN=YOUR_TOKEN // telegram bot token that sends messages to channels
 ```
 
 ### Working with migrations
