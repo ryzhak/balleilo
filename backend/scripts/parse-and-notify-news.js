@@ -1,4 +1,5 @@
-require('dotenv').config();
+// setup path for env file in order for script to work in production
+require('dotenv').config({ path: `${__dirname}/../../.env` });
 
 const moment = require('moment');
 const TelegramBot = require('node-telegram-bot-api');
