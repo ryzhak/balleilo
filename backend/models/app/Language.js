@@ -11,6 +11,8 @@ const modelSchema = new Schema({
 		type: String,
 		required: true
 	}
+}, {
+	collection: 'app_language'
 });
 
 const Language = mongoose.model('Language', modelSchema);

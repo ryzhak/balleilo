@@ -6,6 +6,7 @@
 
 Create a `.env` file in the project root and assign environment variables:
 ```
+API_SPORTS_KEY=YOUR_API_SPORTS_KEY // API key from api-sports.io
 MONGO_DB_CONNECTION=mongodb://localhost:27017/YOUR_DB_NAME // mongo DB connection string
 TELEGRAM_BOT_API_TOKEN=YOUR_TOKEN // telegram bot token that sends messages to channels
 ```

@@ -16,6 +16,8 @@ const modelSchema = new Schema({
 		type: mongoose.Schema.Types.ObjectId,
 		required: true
 	}
+}, {
+	collection: 'app_news_source'
 });
 
 /**

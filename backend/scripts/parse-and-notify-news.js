@@ -5,8 +5,8 @@ const moment = require('moment');
 const TelegramBot = require('node-telegram-bot-api');
 const Parser = require('rss-parser');
 const db = require('../lib/db');
-const News = require('../models/News');
-const NewsSource = require('../models/NewsSource');
+const News = require('../models/app/News');
+const NewsSource = require('../models/app/NewsSource');
 
 // prepare telegram bot for posting news
 const telegramBot = new TelegramBot(process.env.TELEGRAM_BOT_API_TOKEN);
