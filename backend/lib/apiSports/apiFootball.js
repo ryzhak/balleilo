@@ -3,6 +3,8 @@ const moment = require('moment');
 
 const ApiSportsRequest = require('../../models/api_sports/ApiSportsRequest');
 const Country = require('../../models/api_sports/football/Country');
+const League = require('../../models/api_sports/football/League');
+const Season = require('../../models/api_sports/football/Season');
 const Timezone = require('../../models/api_sports/football/Timezone');
 const Sport = require('../../models/app/Sport');
 
@@ -17,6 +19,8 @@ let mSport = null;
 const REQUEST_DELAY_SECONDS = {
 	'/timezone': 60 * 60 * 24 * 1, // once a day
 	'/countries': 60 * 60 * 24 * 1, // once a day
+	'/leagues/seasons': 60 * 60 * 24 * 1, // once a day
+	'/leagues': 60 * 60 * 24 * 1, // once a day
 };
 
 //=================
@@ -43,6 +47,8 @@ async function sync(params) {
 	//====================
 	// await syncTimezones();
 	// await syncCountries();
+	// await syncLeaguesSeasons();
+	// await syncLeagues();
 
 	// sync data connected to provided leagues and seasons
 	console.log('===sync===');
@@ -109,6 +115,82 @@ async function syncTimezones() {
 		await mApiSportsRequest.save();
 	}
 }
+
+/**
+ * Syncs seasons in leagues
+ */
+async function syncLeaguesSeasons() {
+	// prepare API request url
+	let url = '/leagues/seasons';
+
+	// get latest timezone request
+	const mLastApiSportsRequest = await ApiSportsRequest.findOne({ sport_id: mSport._id, url: url }).sort({created_at: 'desc'});
+
+	// if there is not latest API request or it is time to make a request
+	if (!mLastApiSportsRequest || (moment().unix() > mLastApiSportsRequest.created_at + REQUEST_DELAY_SECONDS[url])) {
+		// get all available seasons in leagues
+		const seasonsResp = await axios.get('/leagues/seasons');
+		// foreach seasons
+		for (let seasonValue of seasonsResp.data.response) {
+			// if season does not exist then create a new one
+			let mSeason = await Season.findOne({value: seasonValue});
+			if (!mSeason) {
+				mSeason = new Season({value: seasonValue});
+				await mSeason.save();
+			}
+		}
+		// save API request to log
+		const mApiSportsRequest = new ApiSportsRequest({ sport_id: mSport._id, url: url });
+		await mApiSportsRequest.save();
+	}
+}
+
+/**
+ * Syncs leagues
+ */
+ async function syncLeagues() {
+	// prepare API request url
+	let url = '/leagues';
+
+	// get latest timezone request
+	const mLastApiSportsRequest = await ApiSportsRequest.findOne({ sport_id: mSport._id, url: url }).sort({created_at: 'desc'});
+
+	// if there is not latest API request or it is time to make a request
+	if (!mLastApiSportsRequest || (moment().unix() > mLastApiSportsRequest.created_at + REQUEST_DELAY_SECONDS[url])) {
+		// get all available leagues
+		const leaguesResp = await axios.get('/leagues');
+		// foreach league
+		for (let leagueRaw of leaguesResp.data.response) {
+			// if league does not exist then create a new one
+			let mLeague = await League.findOne({external_id: leagueRaw.league.id});
+			if (!mLeague) {
+				// find league's country
+				const mCountry = await Country.findOne({name: leagueRaw.country.name});
+				// save league
+				mLeague = new League({
+					external_id: leagueRaw.league.id,
+					name: leagueRaw.league.name,
+					type: leagueRaw.league.type,
+					logo: leagueRaw.league.logo,
+					country_id: mCountry._id,
+					seasons: leagueRaw.seasons
+				});
+			} else {
+				// update league model with latest data
+				mLeague.name = leagueRaw.league.name;
+				mLeague.type = leagueRaw.league.type;
+				mLeague.logo = leagueRaw.league.logo;
+				mLeague.seasons = leagueRaw.seasons;
+			}
+			// save league
+			await mLeague.save();
+		}
+		// save API request to log
+		const mApiSportsRequest = new ApiSportsRequest({ sport_id: mSport._id, url: url });
+		await mApiSportsRequest.save();
+	}
+}
+
 
 module.exports = {
 	sync
