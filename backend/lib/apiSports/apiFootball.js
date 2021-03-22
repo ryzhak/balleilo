@@ -5,7 +5,9 @@ const ApiSportsRequest = require('../../models/api_sports/ApiSportsRequest');
 const Country = require('../../models/api_sports/football/Country');
 const League = require('../../models/api_sports/football/League');
 const Season = require('../../models/api_sports/football/Season');
+const Team = require('../../models/api_sports/football/Team');
 const Timezone = require('../../models/api_sports/football/Timezone');
+const Venue = require('../../models/api_sports/football/Venue');
 const Sport = require('../../models/app/Sport');
 
 axios.defaults.baseURL = 'https://v3.football.api-sports.io';
@@ -21,6 +23,7 @@ const REQUEST_DELAY_SECONDS = {
 	'/countries': 60 * 60 * 24 * 1, // once a day
 	'/leagues/seasons': 60 * 60 * 24 * 1, // once a day
 	'/leagues': 60 * 60 * 24 * 1, // once a day
+	'/teams': 60 * 60 * 24 * 1, // once a day
 };
 
 //=================
@@ -49,6 +52,7 @@ async function sync(params) {
 	// await syncCountries();
 	// await syncLeaguesSeasons();
 	// await syncLeagues();
+	// await syncTeamsAndVenues(params.leagues);
 
 	// sync data connected to provided leagues and seasons
 	console.log('===sync===');
@@ -155,7 +159,7 @@ async function syncLeaguesSeasons() {
 	// get latest timezone request
 	const mLastApiSportsRequest = await ApiSportsRequest.findOne({ sport_id: mSport._id, url: url }).sort({created_at: 'desc'});
 
-	// if there is not latest API request or it is time to make a request
+	// if there is no latest API request or it is time to make a request
 	if (!mLastApiSportsRequest || (moment().unix() > mLastApiSportsRequest.created_at + REQUEST_DELAY_SECONDS[url])) {
 		// get all available leagues
 		const leaguesResp = await axios.get('/leagues');
@@ -191,6 +195,80 @@ async function syncLeaguesSeasons() {
 	}
 }
 
+/**
+ * Syncs teams and venues
+ * @param {Array<Object>} leagues leagues data
+ * leagues param ex:
+ * [
+ *     { league_id: 1, season: 2020 },
+ *     { league_id: 2, season: 2020 }
+ * ]
+ */
+async function syncTeamsAndVenues(leagues) {
+	// prepare API request url
+	let url = '/teams';
+
+	// for all provided leagues
+	for (let league of leagues) {
+		// prepare url for iterated league
+		const urlTargeted = `${url}?league=${league.league_id}&season=${league.season}`;
+
+		// get latest teams request
+		const mLastApiSportsRequest = await ApiSportsRequest.findOne({ sport_id: mSport._id, url: urlTargeted }).sort({created_at: 'desc'});
+
+		// if there is no latest API request or it is time to make a request
+		if (!mLastApiSportsRequest || (moment().unix() > mLastApiSportsRequest.created_at + REQUEST_DELAY_SECONDS[url])) {
+			// get all available teams
+			const teamsResp = await axios.get(urlTargeted);
+			// foreach team
+			for (let teamRaw of teamsResp.data.response) {
+				// if venue does not exist then create a new one
+				let mVenue = await Venue.findOne({external_id: teamRaw.venue.id});
+				if (!mVenue) {
+					mVenue = new Venue({external_id: teamRaw.venue.id, ...teamRaw.venue});
+				} else {
+					// venue exists, update it
+					mVenue.name = teamRaw.venue.name;
+					mVenue.address = teamRaw.venue.address;
+					mVenue.city = teamRaw.venue.city;
+					mVenue.capacity = teamRaw.venue.capacity;
+					mVenue.surface = teamRaw.venue.surface;
+					mVenue.image = teamRaw.venue.image;
+				}
+				// save venue
+				await mVenue.save();
+
+				// find team country
+				const mCountry = await Country.findOne({name: teamRaw.team.country});
+				// if team does not exist then create a new one
+				let mTeam = await Team.findOne({external_id: teamRaw.team.id});
+				if (!mTeam) {
+					// set team attributes
+					mTeam = new Team({
+						external_id: teamRaw.team.id,
+						country_id: mCountry._id,
+						venue_id: mVenue._id,
+						...teamRaw.team
+					});
+				} else {
+					// team exists, update it
+					mTeam.name = teamRaw.team.name;
+					mTeam.founded = teamRaw.team.founded;
+					mTeam.national = teamRaw.team.national;
+					mTeam.logo = teamRaw.team.logo;
+					mTeam.country_id = mCountry._id;
+					mTeam.venue_id = mVenue._id;
+				}
+				// save team
+				await mTeam.save();
+			}
+
+			// save API request to log
+			const mApiSportsRequest = new ApiSportsRequest({ sport_id: mSport._id, url: urlTargeted });
+			await mApiSportsRequest.save();
+		}
+	}
+}
 
 module.exports = {
 	sync
