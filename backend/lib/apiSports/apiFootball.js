@@ -4,6 +4,7 @@ const moment = require('moment');
 const ApiSportsRequest = require('../../models/api_sports/ApiSportsRequest');
 const Country = require('../../models/api_sports/football/Country');
 const League = require('../../models/api_sports/football/League');
+const Round = require('../../models/api_sports/football/Round');
 const Season = require('../../models/api_sports/football/Season');
 const Team = require('../../models/api_sports/football/Team');
 const Timezone = require('../../models/api_sports/football/Timezone');
@@ -24,6 +25,7 @@ const REQUEST_DELAY_SECONDS = {
 	'/leagues/seasons': 60 * 60 * 24 * 1, // once a day
 	'/leagues': 60 * 60 * 24 * 1, // once a day
 	'/teams': 60 * 60 * 24 * 1, // once a day
+	'/fixtures/rounds': 60 * 60 * 24 * 1, // once a day
 };
 
 //=================
@@ -45,14 +47,13 @@ async function sync(params) {
 	// get current sport model
 	mSport = await Sport.findOne({name: 'football'});
 
-	//====================
-	// Sync global objects
-	//====================
+	// sync global objects
 	// await syncTimezones();
 	// await syncCountries();
 	// await syncLeaguesSeasons();
 	// await syncLeagues();
 	// await syncTeamsAndVenues(params.leagues);
+	// await syncFixturesRounds(params.leagues);
 
 	// sync data connected to provided leagues and seasons
 	console.log('===sync===');
@@ -261,6 +262,56 @@ async function syncTeamsAndVenues(leagues) {
 				}
 				// save team
 				await mTeam.save();
+			}
+
+			// save API request to log
+			const mApiSportsRequest = new ApiSportsRequest({ sport_id: mSport._id, url: urlTargeted });
+			await mApiSportsRequest.save();
+		}
+	}
+}
+
+/**
+ * Syncs league rounds
+ * @param {Array<Object>} leagues leagues data
+ * leagues param ex:
+ * [
+ *     { league_id: 1, season: 2020 },
+ *     { league_id: 2, season: 2020 }
+ * ]
+ */
+ async function syncFixturesRounds(leagues) {
+	// prepare API request url
+	let url = '/fixtures/rounds';
+
+	// for all provided leagues
+	for (let league of leagues) {
+		// prepare url for iterated league
+		const urlTargeted = `${url}?league=${league.league_id}&season=${league.season}`;
+
+		// get league and season models
+		const mLeague = await League.findOne({external_id: league.league_id});
+		const mSeason = await Season.findOne({value: league.season});
+
+		// get latest rounds request
+		const mLastApiSportsRequest = await ApiSportsRequest.findOne({ sport_id: mSport._id, url: urlTargeted }).sort({created_at: 'desc'});
+
+		// if there is no latest API request or it is time to make a request
+		if (!mLastApiSportsRequest || (moment().unix() > mLastApiSportsRequest.created_at + REQUEST_DELAY_SECONDS[url])) {
+			// get all available rounds
+			const roundsResp = await axios.get(urlTargeted);
+			// foreach round
+			for (let roundName of roundsResp.data.response) {
+				// if round does not exist then create a new one
+				let mRound = await Round.findOne({name: roundName, league_id: mLeague._id, season_id: mSeason._id});
+				if (!mRound) {
+					mRound = new Round({name: roundName, league_id: mLeague._id, season_id: mSeason._id});
+				} else {
+					// round exists, update its name
+					mRound.name = roundName;
+				}
+				// save round
+				await mRound.save();
 			}
 
 			// save API request to log
