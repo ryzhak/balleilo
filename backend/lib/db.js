@@ -7,7 +7,7 @@ let db = null;
  */
 function connect() {
 	return new Promise((resolve, reject) => {
-		mongoose.connect(process.env.MONGO_DB_CONNECTION, { useNewUrlParser: true, useUnifiedTopology: true });
+		mongoose.connect(process.env.MONGO_DB_CONNECTION, { useNewUrlParser: true, useUnifiedTopology: true, useFindAndModify: false });
 		db = mongoose.connection;
 		db.on('error', (err) => {
 			reject(err);

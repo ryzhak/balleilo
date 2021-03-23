@@ -3,6 +3,7 @@ const moment = require('moment');
 
 const ApiSportsRequest = require('../../models/api_sports/ApiSportsRequest');
 const Country = require('../../models/api_sports/football/Country');
+const Fixture = require('../../models/api_sports/football/Fixture');
 const League = require('../../models/api_sports/football/League');
 const Round = require('../../models/api_sports/football/Round');
 const Season = require('../../models/api_sports/football/Season');
@@ -26,6 +27,7 @@ const REQUEST_DELAY_SECONDS = {
 	'/leagues': 60 * 60 * 24 * 1, // once a day
 	'/teams': 60 * 60 * 24 * 1, // once a day
 	'/fixtures/rounds': 60 * 60 * 24 * 1, // once a day
+	'/fixtures': 60 * 60 * 1, // once an hour
 };
 
 //=================
@@ -55,8 +57,10 @@ async function sync(params) {
 	// await syncTeamsAndVenues(params.leagues);
 	// await syncFixturesRounds(params.leagues);
 
-	// sync data connected to provided leagues and seasons
-	console.log('===sync===');
+	// sync fixtures(calendar) and return finished fixtures (used to update standings, team stats, players' stats, etc...)
+	// const mFixturesFinished = await syncFixtures(params.leagues);
+
+	console.log('===synced===');
 }
 
 //====================
@@ -319,6 +323,87 @@ async function syncTeamsAndVenues(leagues) {
 			await mApiSportsRequest.save();
 		}
 	}
+}
+
+/**
+ * Syncs fixtures(calendar)
+ * @param {Array<Object>} leagues leagues data
+ * leagues param ex:
+ * [
+ *     { league_id: 1, season: 2020 },
+ *     { league_id: 2, season: 2020 }
+ * ]
+ * @return {Array<Object>} array of finished fixture models
+ */
+async function syncFixtures(leagues) {
+	// prepare API request url
+	let url = '/fixtures';
+
+	// prepare result array for finished fixtures
+	let finishedFixtures = [];
+
+	// for all provided leagues
+	for (let league of leagues) {
+		// prepare url for iterated league
+		const urlTargeted = `${url}?league=${league.league_id}&season=${league.season}`;
+
+		// get league and season models
+		const mLeague = await League.findOne({external_id: league.league_id});
+		const mSeason = await Season.findOne({value: league.season});
+
+		// get latest fixtures request
+		const mLastApiSportsRequest = await ApiSportsRequest.findOne({ sport_id: mSport._id, url: urlTargeted }).sort({created_at: 'desc'});
+
+		// if there is no latest API request or it is time to make a request
+		if (!mLastApiSportsRequest || (moment().unix() > mLastApiSportsRequest.created_at + REQUEST_DELAY_SECONDS[url])) {
+			// get all available fixtures
+			const fixturesResp = await axios.get(urlTargeted);
+			
+			// foreach fixture
+			for (let fixtureRaw of fixturesResp.data.response) {
+				// check if fixture has just finished
+				let fixtureHasJustFinished = false;
+				const mFixtureOld = await Fixture.findOne({external_id: fixtureRaw.fixture.id});
+				if (mFixtureOld && mFixtureOld.status.short !== 'FT' && fixtureRaw.fixture.status.short === 'FT') {
+					fixtureHasJustFinished = true;
+				}
+
+				// find home and away teams
+				const mTeamHome = await Team.findOne({external_id: fixtureRaw.teams.home.id});
+				const mTeamAway = await Team.findOne({external_id: fixtureRaw.teams.away.id});
+				// find round
+				const mRound = await Round.findOne({league_id: mLeague._id, season_id: mSeason._id, name: fixtureRaw.league.round});
+
+				// create a new fixture or update an existing
+				const fixtureData = {
+					external_id: fixtureRaw.fixture.id,
+					referee: fixtureRaw.fixture.referee,
+					start_at: fixtureRaw.fixture.timestamp,
+					periods: fixtureRaw.fixture.periods,
+					venue: {...fixtureRaw.fixture.venue, ...{external_id: fixtureRaw.fixture.venue.id}},
+					status: fixtureRaw.fixture.status,
+					goals: fixtureRaw.goals,
+					score: fixtureRaw.score,
+					league_id: mLeague._id,
+					season_id: mSeason._id,
+					round_id: mRound._id,
+					home_team_id: mTeamHome._id,
+					away_team_id: mTeamAway._id
+				};
+				const mFixtureUpdated = await Fixture.findOneAndUpdate({external_id: fixtureRaw.fixture.id}, fixtureData, {upsert: true, new: true});
+
+				// if fixture has just finished then add it to result finished fixtures array
+				if (fixtureHasJustFinished) finishedFixtures.push(mFixtureUpdated);
+			}
+
+			// save API request to log
+			const mApiSportsRequest = new ApiSportsRequest({ sport_id: mSport._id, url: urlTargeted });
+			await mApiSportsRequest.save();
+		}
+	}
+
+	// return finished fixtures models
+	return finishedFixtures;
 }
 
 module.exports = {
