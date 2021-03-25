@@ -1,5 +1,11 @@
 /**
  * API sports DB sync lib
+ * 
+ * Rate limits
+ * Free account can make 10 requests / minute per single sport API.
+ * Pro account:
+ * football API => 200 req/min
+ * basketball API => 500 req/min
  */
 
 const apiFootball = require('./apiFootball');

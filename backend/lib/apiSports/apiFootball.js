@@ -1,6 +1,5 @@
 /**
  * API football sync script.
- * NOTICE: Rate limit is 10 request per minute.
  */
 
 const axios = require('axios');
@@ -12,6 +11,7 @@ const Fixture = require('../../models/api_sports/football/Fixture');
 const League = require('../../models/api_sports/football/League');
 const Round = require('../../models/api_sports/football/Round');
 const Season = require('../../models/api_sports/football/Season');
+const Standing = require('../../models/api_sports/football/Standing');
 const Team = require('../../models/api_sports/football/Team');
 const TeamStatistics = require('../../models/api_sports/football/TeamStatistics');
 const Timezone = require('../../models/api_sports/football/Timezone');
@@ -35,6 +35,7 @@ const REQUEST_DELAY_SECONDS = {
 	'/fixtures/rounds': 60 * 60 * 24 * 1, // once a day
 	'/fixtures': 60 * 60 * 1, // once an hour
 	'/teams/statistics': 60 * 60 * 24 * 7, // once an week
+	'/standings': 60 * 60 * 24 * 1, // once a day
 };
 
 //=================
@@ -68,8 +69,8 @@ async function sync(params) {
 	// const mFixturesFinished = await syncFixtures(params.leagues);
 
 	// sync objects which depend on finished fixtures
-	// sync team statistics for finished fixtures or on the 1st parser run
 	// await syncTeamStatistics(params.leagues, mFixturesFinished);
+	// await syncStandings(params.leagues, mFixturesFinished);
 
 	console.log('===synced===');
 }
@@ -507,6 +508,89 @@ async function syncFixtures(leagues) {
 					await mApiSportsRequest.save();
 				}
 			}
+		}
+	}
+ }
+
+ /**
+ * Syncs standings(tables).
+ * Sync only when fixture is finished or on the 1st parser run.
+ * @param {Array<Object>} leagues leagues data
+ * leagues param ex:
+ * [
+ *     { league_id: 1, season: 2020 },
+ *     { league_id: 2, season: 2020 }
+ * ]
+ * @param {Array<Object>} mFixturesFinished array of recently finished fixtures
+ */
+ async function syncStandings(leagues, mFixturesFinished) {
+	// prepare API request url
+	let url = '/standings';
+
+	// update statistics for teams in finished fixtures
+	for (let mFixtureFinished of mFixturesFinished) {
+		// get models
+		const mLeague = await League.findById(mFixtureFinished.league_id);
+		const mSeason = await Season.findById(mFixtureFinished.season_id);
+
+		// prepare url for iterated league
+		const urlTargeted = `${url}?league=${mLeague.external_id}&season=${mSeason.value}`;
+		// get league standings
+		const standingsResp = await axios.get(urlTargeted);
+
+		// add team_id to all standing values
+		for (let i = 0; i < standingsResp.data.response[0].league.standings[0].length; i++) {
+			const mTeam = await Team.findOne({external_id: standingsResp.data.response[0].league.standings[0][i].team.id});
+			standingsResp.data.response[0].league.standings[0][i]['team_id'] = mTeam._id;
+		}
+
+		// create a new standing model or update an existing
+		const data = {
+			values: standingsResp.data.response[0].league.standings[0],
+			league_id: mLeague._id,
+			season_id: mSeason._id
+		};
+		await Standing.findOneAndUpdate({league_id: mLeague._id, season_id: mSeason._id}, data, {upsert: true});
+
+		// save API request to log
+		const mApiSportsRequest = new ApiSportsRequest({ sport_id: mSport._id, url: urlTargeted });
+		await mApiSportsRequest.save();
+	}
+
+	// make sure that all leagues have standings
+	// for all provided leagues
+	for (let league of leagues) {
+		// get league and season models
+		const mLeague = await League.findOne({external_id: league.league_id});
+		const mSeason = await Season.findOne({value: league.season});
+
+		// prepare url for iterated league
+		const urlTargeted = `${url}?league=${mLeague.external_id}&season=${mSeason.value}`;
+		// get latest league standings request
+		const mLastApiSportsRequest = await ApiSportsRequest.findOne({ sport_id: mSport._id, url: urlTargeted }).sort({created_at: 'desc'});
+
+		// if there is no latest API request or it is time to make a request
+		if (!mLastApiSportsRequest || (moment().unix() > mLastApiSportsRequest.created_at + REQUEST_DELAY_SECONDS[url])) {
+			// get league standings
+			const standingsResp = await axios.get(urlTargeted);
+
+			// add team_id to all standing values
+			for (let i = 0; i < standingsResp.data.response[0].league.standings[0].length; i++) {
+				const mTeam = await Team.findOne({external_id: standingsResp.data.response[0].league.standings[0][i].team.id});
+				standingsResp.data.response[0].league.standings[0][i]['team_id'] = mTeam._id;
+			}
+
+			// create a new standing model or update an existing
+			const data = {
+				values: standingsResp.data.response[0].league.standings[0],
+				league_id: mLeague._id,
+				season_id: mSeason._id
+			};
+			await Standing.findOneAndUpdate({league_id: mLeague._id, season_id: mSeason._id}, data, {upsert: true});
+
+			// save API request to log
+			const mApiSportsRequest = new ApiSportsRequest({ sport_id: mSport._id, url: urlTargeted });
+			await mApiSportsRequest.save();
 		}
 	}
  }
