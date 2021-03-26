@@ -36,7 +36,43 @@ const REQUEST_DELAY_SECONDS = {
 	'/fixtures': 60 * 60 * 1, // once an hour
 	'/teams/statistics': 60 * 60 * 24 * 7, // once an week
 	'/standings': 60 * 60 * 24 * 1, // once a day
+	'/fixtures/headtohead': 60 * 60 * 24 * 7, // once an week
 };
+
+/**
+ * TODO: handle rate limit error
+ * 
+ * Success state:
+ * {
+ *   get: 'fixtures/headtohead',
+ *   parameters: { h2h: '66-36', last: '10' },
+ *   errors: [],
+ *   results: 10,
+ *   paging: { current: 1, total: 1 },
+ *   response: [
+ *     {
+ *       fixture: [Object],
+ *       league: [Object],
+ *       teams: [Object],
+ *       goals: [Object],
+ *       score: [Object]
+ *     }
+ *   ]
+ * }
+ * 
+ * Error state:
+ * {
+ *   get: 'fixtures/headtohead',
+ *   parameters: { h2h: '49-60', last: '10' },
+ *   errors: {
+ *     rateLimit: 'Too many requests. Your rate limit is 10 requests per minute.'
+ *   },
+ *   results: 0,
+ *   paging: { current: 1, total: 1 },
+ *   response: []
+ * }
+ *
+ */
 
 //=================
 // Main sync method
@@ -71,6 +107,7 @@ async function sync(params) {
 	// sync objects which depend on finished fixtures
 	// await syncTeamStatistics(params.leagues, mFixturesFinished);
 	// await syncStandings(params.leagues, mFixturesFinished);
+	// await syncFixturesHeadToHead(params.leagues); // depends on standings
 
 	console.log('===synced===');
 }
@@ -594,6 +631,90 @@ async function syncFixtures(leagues) {
 		}
 	}
  }
+
+/**
+ * Syncs head to head fixtures.
+ * @param {Array<Object>} leagues leagues data
+ * leagues param ex:
+ * [
+ *     { league_id: 1, season: 2020 },
+ *     { league_id: 2, season: 2020 }
+ * ]
+ */
+async function syncFixturesHeadToHead(leagues) {
+	// prepare API request url
+	let url = '/fixtures/headtohead';
+
+	// for all provided leagues
+	for (let league of leagues) {
+		// get league and season models
+		const mLeague = await League.findOne({external_id: league.league_id});
+		const mSeason = await Season.findOne({value: league.season});
+
+		// get number of fixtures in the next round
+		const mStanding = await Standing.findOne({league_id: mLeague._id, season_id: mSeason._id});
+		const teamsCount = mStanding.values.length;
+		const fixturesInRoundCount = teamsCount / 2;
+
+		// get next fixtures
+		const mNextFixtures = await Fixture.find({'league_id': mLeague._id, 'season_id': mSeason._id, 'status.short': 'NS'}).limit(fixturesInRoundCount);
+		
+		// for each next fixture
+		for (let mNextFixture of mNextFixtures) {
+			// get home and away teams
+			const mTeamHome = await Team.findById(mNextFixture.home_team_id);
+			const mTeamAway = await Team.findById(mNextFixture.away_team_id);
+
+			// prepare url for iterated fixture
+			const urlTargeted = `${url}?h2h=${mTeamHome.external_id}-${mTeamAway.external_id}&last=10`;
+			// get latest head to head fixtures request
+			const mLastApiSportsRequest = await ApiSportsRequest.findOne({ sport_id: mSport._id, url: urlTargeted }).sort({created_at: 'desc'});
+
+			// if there is no latest API request or it is time to make a request
+			if (!mLastApiSportsRequest || (moment().unix() > mLastApiSportsRequest.created_at + REQUEST_DELAY_SECONDS[url])) {
+				// get last head to head fixtures
+				const headToHeadFixturesResp = await axios.get(urlTargeted);
+				
+				// foreach fixture
+				for (let fixtureRaw of headToHeadFixturesResp.data.response) {
+					// find home and away teams
+					const mTeamHome = await Team.findOne({external_id: fixtureRaw.teams.home.id});
+					const mTeamAway = await Team.findOne({external_id: fixtureRaw.teams.away.id});
+					const mSeasonOld = await Season.findOne({value: fixtureRaw.league.season});
+					
+					// find round (create if it does not exist)
+					let mRound = await Round.findOne({league_id: mLeague._id, season_id: mSeasonOld._id, name: fixtureRaw.league.round});
+					if (!mRound) {
+						mRound = new Round({league_id: mLeague._id, season_id: mSeasonOld._id, name: fixtureRaw.league.round});
+						await mRound.save();
+					}
+
+					// create a new fixture or update an existing
+					const fixtureData = {
+						external_id: fixtureRaw.fixture.id,
+						referee: fixtureRaw.fixture.referee,
+						start_at: fixtureRaw.fixture.timestamp,
+						periods: fixtureRaw.fixture.periods,
+						venue: {...fixtureRaw.fixture.venue, ...{external_id: fixtureRaw.fixture.venue.id}},
+						status: fixtureRaw.fixture.status,
+						goals: fixtureRaw.goals,
+						score: fixtureRaw.score,
+						league_id: mLeague._id,
+						season_id: mSeason._id,
+						round_id: mRound._id,
+						home_team_id: mTeamHome._id,
+						away_team_id: mTeamAway._id
+					};
+					await Fixture.findOneAndUpdate({external_id: fixtureRaw.fixture.id}, fixtureData, {upsert: true, new: true});
+				}
+
+				// save API request to log
+				const mApiSportsRequest = new ApiSportsRequest({ sport_id: mSport._id, url: urlTargeted });
+				await mApiSportsRequest.save();
+			}
+		}
+	}
+}
 
 module.exports = {
 	sync
