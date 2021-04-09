@@ -2,7 +2,13 @@
 require('dotenv').config({ path: `${__dirname}/../.env` });
 
 const express = require('express');
+const db = require('./lib/db');
+const auth = require('./middlewares/auth');
+const parserRoutes = require('./routes/parser');
 const userRoutes = require('./routes/user');
+
+// connect to mongo
+db.connect();
 
 // create express app
 const app = express();
@@ -10,13 +16,17 @@ const app = express();
 // add middlewares
 app.use(express.json()); // accept JSON for POST and other request types
 
-// connect API routes
+// API routes without authorization
 app.use('/user', userRoutes);
+
+// API routes with authorization
+app.use(auth.restrict); // check "Authorization" for valid API token
+app.use('/parser', parserRoutes);
 
 // home route
 app.get('/', (req, res) => {
   	res.send('It works!')
-})
+});
 
 // run server
 app.listen(process.env.BACKEND_PORT, () => {
