@@ -1,6 +1,7 @@
 // setup path for env file in order for script to work in production
 require('dotenv').config({ path: `${__dirname}/../.env` });
 
+const cors = require('cors');
 const express = require('express');
 const db = require('./lib/db');
 const auth = require('./middlewares/auth');
@@ -14,6 +15,7 @@ db.connect();
 const app = express();
 
 // add middlewares
+app.use(cors()); // enable CORS for all origins
 app.use(express.json()); // accept JSON for POST and other request types
 
 // API routes without authorization

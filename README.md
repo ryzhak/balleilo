@@ -10,6 +10,7 @@ API_BALLEILO_KEY=YOUR_API_BALLEILO_KEY // secret key used for dashboard and API 
 API_SPORTS_KEY=YOUR_API_SPORTS_KEY // API key from api-sports.io
 BACKEND_PORT=8080 // backend API port
 MONGO_DB_CONNECTION=mongodb://localhost:27017/YOUR_DB_NAME // mongo DB connection string
+REACT_APP_BACKEND_API_URL=http://localhost:8080 // backend API url
 TELEGRAM_BOT_API_TOKEN=YOUR_TOKEN // telegram bot token that sends messages to channels
 ```
 
