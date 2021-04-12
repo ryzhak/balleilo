@@ -8,6 +8,7 @@ const moment = require('moment');
 const ApiSportsRequest = require('../../models/api_sports/ApiSportsRequest');
 const Country = require('../../models/api_sports/football/Country');
 const Fixture = require('../../models/api_sports/football/Fixture');
+const FixtureStatistics = require('../../models/api_sports/football/FixtureStatistics');
 const League = require('../../models/api_sports/football/League');
 const Round = require('../../models/api_sports/football/Round');
 const Season = require('../../models/api_sports/football/Season');
@@ -108,6 +109,7 @@ async function sync(params) {
 	// await syncTeamStatistics(params.leagues, mFixturesFinished);
 	// await syncStandings(params.leagues, mFixturesFinished);
 	// await syncFixturesHeadToHead(params.leagues); // depends on standings
+	// await syncFixturesStatistics(mFixturesFinished);
 
 	console.log('===synced===');
 }
@@ -713,6 +715,37 @@ async function syncFixturesHeadToHead(leagues) {
 				await mApiSportsRequest.save();
 			}
 		}
+	}
+}
+
+ /**
+ * Syncs statistics for finished fixtures.
+ * @param {Array<Object>} mFixturesFinished array of recently finished fixtures
+ */
+async function syncFixturesStatistics(mFixturesFinished) {
+	// prepare API request url
+	let url = '/fixtures/statistics';
+
+	// for all finished fixtures
+	for (let mFixtureFinished of mFixturesFinished) {
+		// prepare url for iterated fixture
+		const urlTargeted = `${url}?fixture=${mFixtureFinished.external_id}`;
+
+		// get fixture statistics
+		const fixtureStatisticsResp = await axios.get(urlTargeted);
+
+		// save fixture statistics
+		const fixtureStatisticsData = {
+			home_team_statistics: fixtureStatisticsResp.data.response[0].statistics,
+			away_team_statistics: fixtureStatisticsResp.data.response[1].statistics,
+			fixture_id: mFixtureFinished._id
+		};
+		const mFixtureStatistics = new FixtureStatistics(fixtureStatisticsData);
+		await mFixtureStatistics.save();
+
+		// save API request to log
+		const mApiSportsRequest = new ApiSportsRequest({ sport_id: mSport._id, url: urlTargeted });
+		await mApiSportsRequest.save();
 	}
 }
 
