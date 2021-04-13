@@ -19,8 +19,26 @@ const Timezone = require('../../models/api_sports/football/Timezone');
 const Venue = require('../../models/api_sports/football/Venue');
 const Sport = require('../../models/app/Sport');
 
+// Maximum number of requets per minute.
+// Free account: 10 req/min.
+// Pro account: 200 req/min.
+const MAX_REQUESTS_PER_MINUTE = 10;
+
 axios.defaults.baseURL = 'https://v3.football.api-sports.io';
 axios.defaults.headers.common['x-apisports-key'] = process.env.API_SPORTS_KEY;
+
+/**
+ * Apply timeout before API call in order not to exceed API rate limit
+ */
+axios.interceptors.request.use(async (request) => {
+	// apply timeout, use 80 instead of 60 to be sure not to exceed rate limi
+	const timeoutSeconds = 80 / MAX_REQUESTS_PER_MINUTE;
+	await new Promise(resolve => setTimeout(resolve, timeoutSeconds * 1000));
+	// log API call
+	console.log(request.method, request.url);
+    // Do something before request is sent
+    return request;
+});
 
 // current sport model
 let mSport = null;
