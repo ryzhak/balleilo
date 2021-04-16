@@ -10,6 +10,7 @@ const Country = require('../../models/api_sports/football/Country');
 const Fixture = require('../../models/api_sports/football/Fixture');
 const FixtureStatistics = require('../../models/api_sports/football/FixtureStatistics');
 const League = require('../../models/api_sports/football/League');
+const Player = require('../../models/api_sports/football/Player');
 const Round = require('../../models/api_sports/football/Round');
 const Season = require('../../models/api_sports/football/Season');
 const Standing = require('../../models/api_sports/football/Standing');
@@ -31,12 +32,12 @@ axios.defaults.headers.common['x-apisports-key'] = process.env.API_SPORTS_KEY;
  * Apply timeout before API call in order not to exceed API rate limit
  */
 axios.interceptors.request.use(async (request) => {
-	// apply timeout, use 80 instead of 60 to be sure not to exceed rate limi
+	// apply timeout, use 80 instead of 60 to be sure not to exceed rate limit
 	const timeoutSeconds = 80 / MAX_REQUESTS_PER_MINUTE;
 	await new Promise(resolve => setTimeout(resolve, timeoutSeconds * 1000));
 	// log API call
 	console.log(request.method, request.url);
-    // Do something before request is sent
+	// return request object
     return request;
 });
 
@@ -56,6 +57,7 @@ const REQUEST_DELAY_SECONDS = {
 	'/teams/statistics': 60 * 60 * 24 * 7, // once an week
 	'/standings': 60 * 60 * 24 * 1, // once a day
 	'/fixtures/headtohead': 60 * 60 * 24 * 7, // once an week
+	'/players': 60 * 60 * 24 * 7, // once an week
 };
 
 /**
@@ -119,6 +121,7 @@ async function sync(params) {
 	// await syncLeagues();
 	// await syncTeamsAndVenues(params.leagues);
 	// await syncFixturesRounds(params.leagues);
+	// await syncPlayers(params.leagues);
 
 	// sync fixtures(calendar) and return finished fixtures (used to update standings, team stats, players' stats, etc...)
 	// const mFixturesFinished = await syncFixtures(params.leagues);
@@ -764,6 +767,59 @@ async function syncFixturesStatistics(mFixturesFinished) {
 		// save API request to log
 		const mApiSportsRequest = new ApiSportsRequest({ sport_id: mSport._id, url: urlTargeted });
 		await mApiSportsRequest.save();
+	}
+}
+
+/**
+ * Syncs players and theier league statistics
+ * @param {Array<Object>} leagues leagues data
+ * leagues param ex:
+ * [
+ *     { league_id: 1, season: 2020 },
+ *     { league_id: 2, season: 2020 }
+ * ]
+ */
+ async function syncPlayers(leagues) {
+	// prepare API request url
+	let url = '/players';
+
+	// for all provided leagues
+	for (let league of leagues) {
+		
+		// get league model
+		const mLeague = await League.findOne({external_id: league.league_id});
+
+		// for all pagination pages
+		let pageCount = 1;
+		for (let page = 1; page <= pageCount; page++) {
+			// prepare url for iterated league
+			const urlTargeted = `${url}?league=${league.league_id}&season=${league.season}&page=${page}`;
+
+			// get latest request
+			const mLastApiSportsRequest = await ApiSportsRequest.findOne({ sport_id: mSport._id, url: urlTargeted }).sort({created_at: 'desc'});
+
+			// if there is no latest API request or it is time to make a request
+			if (!mLastApiSportsRequest || (moment().unix() > mLastApiSportsRequest.created_at + REQUEST_DELAY_SECONDS[url])) {
+				// get players for current page
+				const playersResp = await axios.get(urlTargeted);
+				// update last pagination page
+				pageCount = playersResp.data.paging.total;
+
+				// for all players
+				for (let playerData of playersResp.data.response) {
+					// add mongo league_id to statistics
+					for (let i = 0; i < playerData.statistics.length; i++) {
+						playerData.statistics[i].league_id = mLeague._id;
+					}
+					// save player
+					await Player.findOneAndUpdate({external_id: playerData.player.id}, {...playerData.player, statistics: playerData.statistics}, {upsert: true});
+				}
+
+				// save API request to log
+				const mApiSportsRequest = new ApiSportsRequest({ sport_id: mSport._id, url: urlTargeted });
+				await mApiSportsRequest.save();
+			}
+		}
 	}
 }
 
