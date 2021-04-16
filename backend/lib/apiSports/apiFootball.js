@@ -8,6 +8,7 @@ const moment = require('moment');
 const ApiSportsRequest = require('../../models/api_sports/ApiSportsRequest');
 const Country = require('../../models/api_sports/football/Country');
 const Fixture = require('../../models/api_sports/football/Fixture');
+const FixtureEvent = require('../../models/api_sports/football/FixtureEvent');
 const FixtureStatistics = require('../../models/api_sports/football/FixtureStatistics');
 const League = require('../../models/api_sports/football/League');
 const Player = require('../../models/api_sports/football/Player');
@@ -131,6 +132,7 @@ async function sync(params) {
 	// await syncStandings(params.leagues, mFixturesFinished);
 	// await syncFixturesHeadToHead(params.leagues); // depends on standings
 	// await syncFixturesStatistics(mFixturesFinished);
+	// await syncFixturesEvents(mFixturesFinished);
 
 	console.log('===synced===');
 }
@@ -820,6 +822,56 @@ async function syncFixturesStatistics(mFixturesFinished) {
 				await mApiSportsRequest.save();
 			}
 		}
+	}
+}
+
+ /**
+ * Syncs fixture events.
+ * @param {Array<Object>} mFixturesFinished array of recently finished fixtures
+ */
+  async function syncFixturesEvents(mFixturesFinished) {
+	// prepare API request url
+	let url = '/fixtures/events';
+
+	// for all finished fixtures
+	for (let mFixtureFinished of mFixturesFinished) {
+		// prepare url for iterated fixture
+		const urlTargeted = `${url}?fixture=${mFixtureFinished.external_id}`;
+
+		// get fixture events
+		const fixtureEventsResp = await axios.get(urlTargeted);
+
+		// for all fixture events
+		for (let fixtureRaw of fixtureEventsResp.data.response) {
+			// prepare mongo model ids for fixture
+			const mTeam = await Team.findOne({external_id: fixtureRaw.team.id});
+			const mPlayer = await Player.findOne({external_id: fixtureRaw.player.id}); // can be null, for example when coach received a red card, he does not have a player id
+			const mAssistPlayer = await Player.findOne({external_id: fixtureRaw.assist.id}); // can be null, for example for "yellow card" event
+			// save event
+			const fixtureEventData = {
+				...fixtureRaw,
+				fixture_id: mFixtureFinished._id,
+				team_id: mTeam._id,
+				player_id: mPlayer ? mPlayer._id : null,
+				assist_player_id: mAssistPlayer ? mAssistPlayer._id : null,
+			};
+			// no "external id" in event, search by all event properties
+			const fixtureEventSearchData = {
+				time: fixtureRaw.time,
+				type: fixtureRaw.type,
+				detail: fixtureRaw.detail,
+				comments: fixtureRaw.comments,
+				fixture_id: mFixtureFinished._id,
+				team_id: mTeam._id,
+				player_id: mPlayer ? mPlayer._id : null,
+				assist_player_id: mAssistPlayer ? mAssistPlayer._id : null,
+			};
+			await FixtureEvent.findOneAndUpdate(fixtureEventSearchData, fixtureEventData, {upsert: true});
+		}
+
+		// save API request to log
+		const mApiSportsRequest = new ApiSportsRequest({ sport_id: mSport._id, url: urlTargeted });
+		await mApiSportsRequest.save();
 	}
 }
 
