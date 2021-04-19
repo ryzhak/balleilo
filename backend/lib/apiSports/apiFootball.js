@@ -9,6 +9,7 @@ const ApiSportsRequest = require('../../models/api_sports/ApiSportsRequest');
 const Country = require('../../models/api_sports/football/Country');
 const Fixture = require('../../models/api_sports/football/Fixture');
 const FixtureEvent = require('../../models/api_sports/football/FixtureEvent');
+const FixtureLineup = require('../../models/api_sports/football/FixtureLineup');
 const FixtureStatistics = require('../../models/api_sports/football/FixtureStatistics');
 const League = require('../../models/api_sports/football/League');
 const Player = require('../../models/api_sports/football/Player');
@@ -59,6 +60,7 @@ const REQUEST_DELAY_SECONDS = {
 	'/standings': 60 * 60 * 24 * 1, // once a day
 	'/fixtures/headtohead': 60 * 60 * 24 * 7, // once an week
 	'/players': 60 * 60 * 24 * 7, // once an week
+	'/fixtures/lineups': 60 * 10, // every 10 minutes, started 40 minutes before the fixture start, max 4 times per single fixture
 };
 
 /**
@@ -126,6 +128,9 @@ async function sync(params) {
 
 	// sync fixtures(calendar) and return finished fixtures (used to update standings, team stats, players' stats, etc...)
 	// const mFixturesFinished = await syncFixtures(params.leagues);
+
+	// sync fixtures lineups which depend on available fixtures
+	// await syncFixturesLineups(params.leagues);
 
 	// sync objects which depend on finished fixtures
 	// await syncTeamStatistics(params.leagues, mFixturesFinished);
@@ -872,6 +877,84 @@ async function syncFixturesStatistics(mFixturesFinished) {
 		// save API request to log
 		const mApiSportsRequest = new ApiSportsRequest({ sport_id: mSport._id, url: urlTargeted });
 		await mApiSportsRequest.save();
+	}
+}
+
+/**
+ * Syncs players and theier league statistics
+ * @param {Array<Object>} leagues leagues data
+ * leagues param ex:
+ * [
+ *     { league_id: 1, season: 2020 },
+ *     { league_id: 2, season: 2020 }
+ * ]
+ */
+async function syncFixturesLineups(leagues) {
+	// prepare API request url
+	let url = '/fixtures/lineups';
+
+	// for all provided leagues
+	for (let league of leagues) {
+		// get league model
+		const mLeague = await League.findOne({external_id: league.league_id});
+
+		// find upcoming fixtures (40 minutes before the fixture start)
+		const minutesBeforeTheFixtureStart = 40;
+		const mUpcomingFixtures = await Fixture.find({
+			league_id: mLeague._id,
+			start_at: {
+				$gt: moment().unix(),
+				$lte: moment().unix() + minutesBeforeTheFixtureStart * 60
+			}
+		});
+
+		// for all upcoming fixtures
+		for (let mUpcomingFixture of mUpcomingFixtures) {
+			// prepare url for iterated fixture
+			const urlTargeted = `${url}?fixture=${mUpcomingFixture.external_id}`;
+
+			// if lineup exists for home and away teams then proceed to next
+			let mFixtureLineupHome = await FixtureLineup.findOne({fixture_id: mUpcomingFixture._id, team_id: mUpcomingFixture.home_team_id});
+			let mFixtureLineupAway = await FixtureLineup.findOne({fixture_id: mUpcomingFixture._id, team_id: mUpcomingFixture.away_team_id});
+			if (mFixtureLineupHome && mFixtureLineupAway) continue;
+
+			// get latest request
+			const mLastApiSportsRequest = await ApiSportsRequest.findOne({ sport_id: mSport._id, url: urlTargeted }).sort({created_at: 'desc'});
+			// if there is no latest API request or it is time to make a request
+			if (!mLastApiSportsRequest || (moment().unix() > mLastApiSportsRequest.created_at + REQUEST_DELAY_SECONDS[url])) {
+				// get lineups
+				const fixtureLineupsResp = await axios.get(urlTargeted);
+
+				// for all fixture lineups
+				for (let fixtureLineupRaw of fixtureLineupsResp.data.response) {
+					// get team model
+					const mTeam = await Team.findOne({external_id: fixtureLineupRaw.team.id});
+					// save lineup
+					const data = {
+						...fixtureLineupRaw,
+						start_11: fixtureLineupRaw.startXI.map(item => {
+							item.player.external_id = item.player.id;
+							return item;
+						}),
+						substitutes: fixtureLineupRaw.substitutes.map(item => {
+							item.player.external_id = item.player.id;
+							return item;
+						}),
+						coach: {
+							external_id: fixtureLineupRaw.coach.id,
+							name: fixtureLineupRaw.coach.name,
+						},
+						fixture_id: mUpcomingFixture._id, 
+						team_id: mTeam._id
+					};
+					await FixtureLineup.findOneAndUpdate({fixture_id: mUpcomingFixture._id, team_id: mTeam._id}, data, {upsert: true});
+				}
+
+				// save API request to log
+				const mApiSportsRequest = new ApiSportsRequest({ sport_id: mSport._id, url: urlTargeted });
+				await mApiSportsRequest.save();
+			}
+		}
 	}
 }
 
