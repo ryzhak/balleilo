@@ -11,6 +11,7 @@ const Fixture = require('../../models/api_sports/football/Fixture');
 const FixtureEvent = require('../../models/api_sports/football/FixtureEvent');
 const FixtureLineup = require('../../models/api_sports/football/FixtureLineup');
 const FixturePlayerStatistics = require('../../models/api_sports/football/FixturePlayerStatistics');
+const FixturePrediction = require('../../models/api_sports/football/FixturePrediction');
 const FixtureStatistics = require('../../models/api_sports/football/FixtureStatistics');
 const League = require('../../models/api_sports/football/League');
 const Player = require('../../models/api_sports/football/Player');
@@ -140,6 +141,7 @@ async function sync(params) {
 	// await syncFixturesStatistics(mFixturesFinished);
 	// await syncFixturesEvents(mFixturesFinished);
 	// await syncFixturesPlayersStatistics(mFixturesFinished);
+	// await syncFixturesPredictions(params.leagues); // depends on standings
 
 	console.log('===synced===');
 }
@@ -1004,6 +1006,65 @@ async function syncFixturesPlayersStatistics(mFixturesFinished) {
 		// save API request to log
 		const mApiSportsRequest = new ApiSportsRequest({ sport_id: mSport._id, url: urlTargeted });
 		await mApiSportsRequest.save();
+	}
+}
+
+/**
+ * Syncs predictions for upcoming fixtures.
+ * @param {Array<Object>} leagues leagues data
+ * leagues param ex:
+ * [
+ *     { league_id: 1, season: 2020 },
+ *     { league_id: 2, season: 2020 }
+ * ]
+ */
+ async function syncFixturesPredictions(leagues) {
+	// prepare API request url
+	let url = '/predictions';
+
+	// for all provided leagues
+	for (let league of leagues) {
+		// get league and season models
+		const mLeague = await League.findOne({external_id: league.league_id});
+		const mSeason = await Season.findOne({value: league.season});
+
+		// get number of fixtures in the next round
+		const mStanding = await Standing.findOne({league_id: mLeague._id, season_id: mSeason._id});
+		const teamsCount = mStanding.values.length;
+		const fixturesInRoundCount = teamsCount / 2;
+
+		// get next fixtures
+		const mNextFixtures = await Fixture.find({'league_id': mLeague._id, 'season_id': mSeason._id, 'status.short': 'NS'}).limit(fixturesInRoundCount);
+		
+		// for each next fixture
+		for (let mNextFixture of mNextFixtures) {
+			// if prediction exists then proceed to next
+			let mFixturePrediction = await FixturePrediction.findOne({fixture_id: mNextFixture._id});
+			if (mFixturePrediction) continue;
+
+			// prepare url for iterated fixture
+			const urlTargeted = `${url}?fixture=${mNextFixture.external_id}`;
+
+			// get prediction response
+			const fixturePredictionResp = await axios.get(urlTargeted);
+
+			// for all predictions in response
+			for (let fixturePredictionRaw of fixturePredictionResp.data.response) {
+				// set team external id for winner team
+				fixturePredictionRaw.predictions.winner.external_id = fixturePredictionRaw.predictions.winner.id;
+				// save fixture prediction
+				const data = {
+					...fixturePredictionRaw.predictions,
+					comparison: fixturePredictionRaw.comparison,
+					fixture_id: mNextFixture._id,
+				};
+				await FixturePrediction.findOneAndUpdate({fixture_id: mNextFixture._id}, data, {upsert: true});
+			}
+
+			// save API request to log
+			const mApiSportsRequest = new ApiSportsRequest({ sport_id: mSport._id, url: urlTargeted });
+			await mApiSportsRequest.save();
+		}
 	}
 }
 
