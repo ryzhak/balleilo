@@ -1,5 +1,15 @@
 /**
  * API football sync script.
+ * 
+ * The following API routes are not parsed because there are not very important
+ * and require a large amount of requests:
+ * - /trophies?player=PLAYER_ID => 800 calls per season (40 players * 20 teams in a league)
+ * - /trophies?coach=COACH_ID => 20 calls per season
+ * - /sidelined?player=PLAYER_ID(injures) => 800 calls per week (40 players * 20 teams in a league)
+ * - /sidelined?coach=COACH_ID => 20 calls per week
+ * 
+ * Also it would be greate to check API football changelog for new APIs.
+ * At the moment of writing at least "teams/statistics" API has been updated.
  */
 
 const axios = require('axios');
