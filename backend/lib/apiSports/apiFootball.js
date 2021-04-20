@@ -10,6 +10,7 @@ const Country = require('../../models/api_sports/football/Country');
 const Fixture = require('../../models/api_sports/football/Fixture');
 const FixtureEvent = require('../../models/api_sports/football/FixtureEvent');
 const FixtureLineup = require('../../models/api_sports/football/FixtureLineup');
+const FixturePlayerStatistics = require('../../models/api_sports/football/FixturePlayerStatistics');
 const FixtureStatistics = require('../../models/api_sports/football/FixtureStatistics');
 const League = require('../../models/api_sports/football/League');
 const Player = require('../../models/api_sports/football/Player');
@@ -138,6 +139,7 @@ async function sync(params) {
 	// await syncFixturesHeadToHead(params.leagues); // depends on standings
 	// await syncFixturesStatistics(mFixturesFinished);
 	// await syncFixturesEvents(mFixturesFinished);
+	// await syncFixturesPlayersStatistics(mFixturesFinished);
 
 	console.log('===synced===');
 }
@@ -955,6 +957,53 @@ async function syncFixturesLineups(leagues) {
 				await mApiSportsRequest.save();
 			}
 		}
+	}
+}
+
+/**
+ * Syncs players statistics in fixture.
+ * @param {Array<Object>} mFixturesFinished array of recently finished fixtures
+ */
+async function syncFixturesPlayersStatistics(mFixturesFinished) {
+	// prepare API request url
+	let url = '/fixtures/players';
+
+	// for all finished fixtures
+	for (let mFixtureFinished of mFixturesFinished) {
+		// prepare url for iterated fixture
+		const urlTargeted = `${url}?fixture=${mFixtureFinished.external_id}`;
+
+		// get players statistics
+		const fixturePlayersStatisticsResp = await axios.get(urlTargeted);
+
+		// for all teams in response
+		for (let teamStatisticsRaw of fixturePlayersStatisticsResp.data.response) {
+			// get team model
+			const mTeam = await Team.findOne({external_id: teamStatisticsRaw.team.id});
+
+			// for all players in a team
+			for (let playerStaisticsRaw of teamStatisticsRaw.players) {
+				// get player model
+				const mPlayer = await Player.findOne({external_id: playerStaisticsRaw.player.id});
+
+				// save player statistics
+				const data = {
+					statistics: playerStaisticsRaw.statistics,
+					fixture_id: mFixtureFinished._id,
+					team_id: mTeam._id,
+					player_id: mPlayer._id,
+				};
+				await FixturePlayerStatistics.findOneAndUpdate({
+					fixture_id: mFixtureFinished._id, 
+					team_id: mTeam._id,
+					player_id: mPlayer._id
+				}, data, {upsert: true});
+			}
+		}
+
+		// save API request to log
+		const mApiSportsRequest = new ApiSportsRequest({ sport_id: mSport._id, url: urlTargeted });
+		await mApiSportsRequest.save();
 	}
 }
 
