@@ -39,6 +39,7 @@ const Standing = require('../../models/api_sports/football/Standing');
 const Team = require('../../models/api_sports/football/Team');
 const TeamStatistics = require('../../models/api_sports/football/TeamStatistics');
 const Timezone = require('../../models/api_sports/football/Timezone');
+const Transfer = require('../../models/api_sports/football/Transfer');
 const Venue = require('../../models/api_sports/football/Venue');
 const Sport = require('../../models/app/Sport');
 
@@ -82,6 +83,7 @@ const REQUEST_DELAY_SECONDS = {
 	'/players': 60 * 60 * 24 * 7, // once an week
 	'/fixtures/lineups': 60 * 10, // every 10 minutes, started 40 minutes before the fixture start, max 4 times per single fixture
 	'/coachs': 60 * 60 * 24 * 30, // once a month
+	'/transfers': 60 * 60 * 24 * 7, // once an week
 };
 
 /**
@@ -146,6 +148,7 @@ async function sync(params) {
 	// await syncTeamsAndVenues(params.leagues);
 	// await syncFixturesRounds(params.leagues);
 	// await syncPlayers(params.leagues);
+	// await syncTransfers(params.leagues);
 
 	// sync fixtures(calendar) and return finished fixtures (used to update standings, team stats, players' stats, etc...)
 	// const mFixturesFinished = await syncFixtures(params.leagues);
@@ -1141,6 +1144,69 @@ async function syncFixturesPlayersStatistics(mFixturesFinished) {
 				await mApiSportsRequest.save();
 			}
 		}
+	}
+}
+
+/**
+ * Syncs players transfers.
+ * @param {Array<Object>} leagues leagues data
+ * leagues param ex:
+ * [
+ *     { league_id: 1, season: 2020 },
+ *     { league_id: 2, season: 2020 }
+ * ]
+ */
+ async function syncTransfers(leagues) {
+	// prepare API request url
+	let url = '/transfers';
+
+	// for all provided leagues
+	for (let league of leagues) {
+		// get league and season models
+		const mLeague = await League.findOne({external_id: league.league_id});
+		const mSeason = await Season.findOne({value: league.season});
+
+		// for all teams in league standing
+		const mStanding = await Standing.findOne({league_id: mLeague._id, season_id: mSeason._id});
+		for (let teamInStanding of mStanding.values) {
+			// get team model
+			const mTeam = await Team.findById(teamInStanding.team_id);
+
+			// prepare url for iterated fixture
+			const urlTargeted = `${url}?team=${mTeam.external_id}`;
+
+			// get latest request
+			const mLastApiSportsRequest = await ApiSportsRequest.findOne({ sport_id: mSport._id, url: urlTargeted }).sort({created_at: 'desc'});
+			// if there is no latest API request or it is time to make a request
+			if (!mLastApiSportsRequest || (moment().unix() > mLastApiSportsRequest.created_at + REQUEST_DELAY_SECONDS[url])) {
+				// get transfers response
+				const transfersResp = await axios.get(urlTargeted);
+
+				// for all transfers in response
+				for (let transferRaw of transfersResp.data.response) {
+					// prepare external ids instead of id (in order not to confuse ids in mongo DB)
+					transferRaw.player.external_id = transferRaw.player.id;
+					transferRaw.transfers = transferRaw.transfers.map(item => {
+						item.teams.in.external_id = item.teams.in.id;
+						item.teams.out.external_id = item.teams.out.id;
+						return item;
+					});
+
+					// save transfer
+					await Transfer.findOneAndUpdate({
+						team_id: mTeam._id, 
+						'player.external_id': transferRaw.player.external_id,
+						update: transferRaw.update,
+					}, transferRaw, {upsert: true});
+				}
+
+				// save API request to log
+				const mApiSportsRequest = new ApiSportsRequest({ sport_id: mSport._id, url: urlTargeted });
+				await mApiSportsRequest.save();
+			}
+
+			break; // TODO: delete
+		}		
 	}
 }
 
