@@ -17,6 +17,8 @@
  * 
  * Also it would be greate to check API football changelog for new APIs.
  * At the moment of writing at least "teams/statistics" API has been updated.
+ * 
+ * Max number of requests per day for league with 20 teams: 240
  */
 
 const axios = require('axios');
