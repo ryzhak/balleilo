@@ -8,6 +8,13 @@
  * - /sidelined?player=PLAYER_ID(injures) => 800 calls per week (40 players * 20 teams in a league)
  * - /sidelined?coach=COACH_ID => 20 calls per week
  * 
+ * The following API routes are not parsed because all of the can be 
+ * calculated from individual player statistics:
+ * - /players/topscorers
+ * - /players/topassists
+ * - /players/topyellowcards
+ * - /players/topredcards
+ * 
  * Also it would be greate to check API football changelog for new APIs.
  * At the moment of writing at least "teams/statistics" API has been updated.
  */
