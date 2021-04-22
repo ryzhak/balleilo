@@ -1,6 +1,7 @@
 // setup path for env file in order for script to work in production
 require('dotenv').config({ path: `${__dirname}/../../.env` });
 
+const moment = require('moment');
 const ObjectId  = require('mongodb').ObjectID;
 
 const db = require('../lib/db');
@@ -17,6 +18,10 @@ const db = require('../lib/db');
 		// for league
 		// for single team channel
 
+		// special variables
+		// [!team._id] // iterated team id
+		// [!channel.news_tags]
+
 		// find latest played fixture
 		// const result = await dbConn.db.collection('api_football_fixture').aggregate([
 		// 	{$match: {$or: [{home_team_id: ObjectId('6058f53d87a4d41f2b1df1e1')},{away_team_id: ObjectId('6058f53d87a4d41f2b1df1e1')}], "status.short": "FT"}}, 
@@ -28,8 +33,15 @@ const db = require('../lib/db');
 		// 	{$project: {"_id": 1, "goals.home": 1, "goals.away": 1, "home_team.name": 1, "away_team.name": 1}}
 		// ]).toArray();
 
-		// find latest news
-		// const result = await dbConn.db.collection('app_news').aggregate([]).toArray();
+		// find latest news:
+		// - where tag contains "ФК Сочи" or "Максим Мухин"
+		// - published in the last 5 minutes
+		// const result = await dbConn.db.collection('app_news').aggregate([
+		// 	{$match: { 
+		// 		tags: { $in: ['ФК Сочи', 'Максим Мухин']},
+		// 		created_at: {$gte: moment().subtract(5, 'minutes').unix()},
+		// 	}}
+		// ]).toArray();
 
 		// console.log(result);
 
