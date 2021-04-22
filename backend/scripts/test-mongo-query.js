@@ -33,14 +33,17 @@ const db = require('../lib/db');
 		// 	{$project: {"_id": 1, "goals.home": 1, "goals.away": 1, "home_team.name": 1, "away_team.name": 1}}
 		// ]).toArray();
 
-		// find latest news:
-		// - where tag contains "ФК Сочи" or "Максим Мухин"
-		// - published in the last 5 minutes
+		// find latest news where tag contains "ФК Сочи" or "Максим Мухин"
 		// const result = await dbConn.db.collection('app_news').aggregate([
 		// 	{$match: { 
 		// 		tags: { $in: ['ФК Сочи', 'Максим Мухин']},
-		// 		created_at: {$gte: moment().subtract(5, 'minutes').unix()},
-		// 	}}
+		// 	}},
+		// 	{$sort: {created_at: -1}}, 
+		// 	{$limit: 20}, 
+		// 	{$project: {
+		// 		"_id": 1, 
+		// 		"title": 1
+		// 	}},
 		// ]).toArray();
 
 		// console.log(result);
