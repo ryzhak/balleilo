@@ -5,6 +5,7 @@ const cors = require('cors');
 const express = require('express');
 const db = require('./lib/db');
 const auth = require('./middlewares/auth');
+const channelRoutes = require('./routes/channel');
 const parserRoutes = require('./routes/parser');
 const templateRoutes = require('./routes/template');
 const userRoutes = require('./routes/user');
@@ -27,6 +28,7 @@ app.use(`${API_PREFIX}/user`, userRoutes);
 
 // API routes with authorization
 app.use(auth.restrict); // check "Authorization" for valid API token
+app.use(`${API_PREFIX}/channel`, channelRoutes);
 app.use(`${API_PREFIX}/parser`, parserRoutes);
 app.use(`${API_PREFIX}/template`, templateRoutes);
 
