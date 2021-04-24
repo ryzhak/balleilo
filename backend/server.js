@@ -6,7 +6,11 @@ const express = require('express');
 const db = require('./lib/db');
 const auth = require('./middlewares/auth');
 const channelRoutes = require('./routes/channel');
+const languageRoutes = require('./routes/language');
 const parserRoutes = require('./routes/parser');
+const socialMediaPlatformRoutes = require('./routes/social-media-platform');
+const sportRoutes = require('./routes/sport');
+const teamRoutes = require('./routes/team');
 const templateRoutes = require('./routes/template');
 const userRoutes = require('./routes/user');
 
@@ -29,7 +33,11 @@ app.use(`${API_PREFIX}/user`, userRoutes);
 // API routes with authorization
 app.use(auth.restrict); // check "Authorization" for valid API token
 app.use(`${API_PREFIX}/channel`, channelRoutes);
+app.use(`${API_PREFIX}/language`, languageRoutes);
 app.use(`${API_PREFIX}/parser`, parserRoutes);
+app.use(`${API_PREFIX}/social-media-platform`, socialMediaPlatformRoutes);
+app.use(`${API_PREFIX}/sport`, sportRoutes);
+app.use(`${API_PREFIX}/team`, teamRoutes);
 app.use(`${API_PREFIX}/template`, templateRoutes);
 
 // home route
