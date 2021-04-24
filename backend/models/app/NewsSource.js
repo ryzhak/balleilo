@@ -15,7 +15,11 @@ const modelSchema = new Schema({
 	language_id: {
 		type: mongoose.Schema.Types.ObjectId,
 		required: true
-	}
+	},
+	sport_id: {
+		type: mongoose.Schema.Types.ObjectId,
+		required: true
+	},
 }, {
 	collection: 'app_news_source'
 });
