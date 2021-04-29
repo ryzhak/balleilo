@@ -5,6 +5,7 @@ const moment = require('moment');
 const ObjectId  = require('mongodb').ObjectID;
 
 const db = require('../lib/db');
+const Channel = require('../models/app/Channel');
 
 /**
  * Main function
@@ -34,15 +35,16 @@ const db = require('../lib/db');
 		// ]).toArray();
 
 		// find latest news where tag contains "ФК Сочи" or "Максим Мухин"
+		// const mChannel = await Channel.findOne({external_id: '@fckrd1'});
 		// const result = await dbConn.db.collection('app_news').aggregate([
 		// 	{$match: { 
-		// 		tags: { $in: ['ФК Сочи', 'Максим Мухин']},
+		// 		tags: { $in: mChannel.news_tags},
 		// 	}},
 		// 	{$sort: {created_at: -1}}, 
 		// 	{$limit: 20}, 
 		// 	{$project: {
-		// 		"_id": 1, 
-		// 		"title": 1
+		// 		'_id': 1, 
+		// 		'title': 1
 		// 	}},
 		// ]).toArray();
 
