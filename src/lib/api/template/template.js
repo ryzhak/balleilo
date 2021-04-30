@@ -1,34 +1,34 @@
 import axios from 'axios';
 
 /**
- * Returns all parser settings
+ * Returns all templates
  */
 async function search() {
-	return await axios.get('/parser');
+	return await axios.get('/template');
 }
 
 /**
- * Creates a new parser model
+ * Creates a new template model
  * @param {Object} params model fields 
  */
 async function create(params: Object) {
-	return await axios.post('/parser', params);
+	return await axios.post('/template', params);
 }
 
 /**
- * Updates a parser model
+ * Updates a template model
  * @param {Object} params model fields 
  */
 async function update(params: Object) {
-	return await axios.patch(`/parser/${params._id}`, params);
+	return await axios.patch(`/template/${params._id}`, params);
 }
 
 /**
- * Deletes a parser model
+ * Deletes a template model
  * @param {Object} params model fields 
  */
 async function remove(id: string) {
-	return await axios.delete(`/parser/${id}`);
+	return await axios.delete(`/template/${id}`);
 }
 
 export default {
