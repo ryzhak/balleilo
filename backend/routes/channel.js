@@ -18,7 +18,7 @@ const router = express.Router();
 	async (req, res) => {
 		// get all models
 		try {
-			const models = await Channel.find();
+			const models = await Channel.find().populate('teams templates social_media_platform language sport');
 			res.send(models);
 		} catch (err) {
 			console.log(err);

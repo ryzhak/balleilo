@@ -2,7 +2,7 @@ import { Card } from 'primereact/card';
 import { MegaMenu } from 'primereact/megamenu';
 import React from 'react';
 
-import { ParserPage, TemplatePage } from '../../pages';
+import { ChannelPage, ParserPage, TemplatePage } from '../../pages';
 
 /**
  * Dashboard component
@@ -39,7 +39,14 @@ export default class Dashboard extends React.PureComponent {
 				command: () => {
 					this.setState({url: '/dashboard/template'});
 				},
-			}
+			},
+			{
+				label: 'Channel',
+				icon: 'pi pi-globe',
+				command: () => {
+					this.setState({url: '/dashboard/channel'});
+				},
+			},
 		];
 	};
 
@@ -67,6 +74,7 @@ export default class Dashboard extends React.PureComponent {
 							<div className="p-mt-3">
 								{this.state.url === '/dashboard/parser' && <ParserPage />}
 								{this.state.url === '/dashboard/template' && <TemplatePage />}
+								{this.state.url === '/dashboard/channel' && <ChannelPage />}
 							</div>
 						</Card>
 					</div>
