@@ -22,3 +22,7 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# media assets
+backend/assets/media_posts/*
+!backend/assets/media_posts/.gitkeep
