@@ -135,6 +135,8 @@ export default class ParserPage extends React.PureComponent {
     render() {
 		return (
 			<div>
+				{/* title */}
+				<h2>Parser</h2>
 				{/* top toolbar */}
 				<div className="p-mb-3 p-text-right">
 					<Button label="Create" onClick={this.onCreateClick} />

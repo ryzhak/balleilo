@@ -1,19 +1,53 @@
 import { Card } from 'primereact/card';
-import { TabMenu } from 'primereact/tabmenu';
+import { MegaMenu } from 'primereact/megamenu';
 import React from 'react';
-import { BrowserRouter as Router, Route, Switch } from 'react-router-dom';
 
-import { ParserPage } from '../../pages';
+import { ParserPage, TemplatePage } from '../../pages';
 
 /**
  * Dashboard component
  */
 export default class Dashboard extends React.PureComponent {
-    render() {
-		const tabItems = [
-			{ label: 'Parser', icon: 'pi pi-external-link' },
-		];
+	/**
+	 * Component constructor
+	 * @param {Object} props default props 
+	 */
+	 constructor(props) {
+		super(props);
+		// default state
+		this.state = {
+			url: '/dashboard/parser',
+		}
+	}
 
+	/**
+	 * Returns menu items
+	 * @return {Array<Object>} menu items
+	 */
+	getMenuItems = () => {
+		return [
+			{
+				label: 'Parser',
+				icon: 'pi pi-external-link',
+				command: () => {
+					this.setState({url: '/dashboard/parser'});
+				},
+			},
+			{
+				label: 'Template',
+				icon: 'pi pi-file',
+				command: () => {
+					this.setState({url: '/dashboard/template'});
+				},
+			}
+		];
+	};
+
+	/**
+	 * Returns JSX template
+	 * @returns {Object} JSX template
+	 */
+    render() {
 		return (
 			<div className="dashboard">
 				{/* header */}
@@ -25,19 +59,14 @@ export default class Dashboard extends React.PureComponent {
 						</Card>
 					</div>
 				</div>
-				{/* tabs with pages */}
+				{/* menu with pages */}
 				<div className="p-grid">
-					<div className="p-col-9">
+					<div className="p-col-12">
 						<Card>
-							<TabMenu model={tabItems} />
+							<MegaMenu model={this.getMenuItems()} />
 							<div className="p-mt-3">
-								<Router>
-									<Switch>
-										<Route path="/dashboard/parser">
-											<ParserPage />
-										</Route>
-									</Switch>
-								</Router>
+								{this.state.url === '/dashboard/parser' && <ParserPage />}
+								{this.state.url === '/dashboard/template' && <TemplatePage />}
 							</div>
 						</Card>
 					</div>

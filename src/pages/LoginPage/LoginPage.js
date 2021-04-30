@@ -53,7 +53,7 @@ export default class LoginPage extends React.PureComponent {
 			// save balleilo api key to local storage
 			localStorage.setItem('api_balleilo_key', this.state.formValues.api_balleilo_key);
 			// redirect user to dashboard
-			window.location.href = '/dashboard/parser';
+			window.location.href = '/dashboard';
 		} catch (err) {
 			console.log(err);
 			this.global.toast.current.show({ severity: 'error', summary: 'Error', detail: err.message });
