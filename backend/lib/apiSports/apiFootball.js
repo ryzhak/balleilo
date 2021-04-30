@@ -145,31 +145,31 @@ async function sync(params) {
 	mSport = await Sport.findOne({name: 'football'});
 
 	// sync global objects
-	// await syncTimezones();
-	// await syncCountries();
-	// await syncLeaguesSeasons();
-	// await syncLeagues();
-	// await syncTeamsAndVenues(params.leagues);
-	// await syncFixturesRounds(params.leagues);
-	// await syncPlayers(params.leagues);
-	// await syncTransfers(params.leagues);
+	await syncTimezones();
+	await syncCountries();
+	await syncLeaguesSeasons();
+	await syncLeagues();
+	await syncTeamsAndVenues(params.leagues);
+	await syncFixturesRounds(params.leagues);
+	await syncPlayers(params.leagues);
+	await syncTransfers(params.leagues);
 
 	// sync fixtures(calendar) and return finished fixtures (used to update standings, team stats, players' stats, etc...)
-	// const mFixturesFinished = await syncFixtures(params.leagues);
+	const mFixturesFinished = await syncFixtures(params.leagues);
 
 	// sync fixtures lineups which depend on available fixtures
-	// await syncFixturesLineups(params.leagues);
+	await syncFixturesLineups(params.leagues);
 
 	// sync objects which depend on finished fixtures
-	// await syncTeamStatistics(params.leagues, mFixturesFinished);
-	// await syncStandings(params.leagues, mFixturesFinished);
-	// await syncFixturesHeadToHead(params.leagues); // depends on standings
-	// await syncFixturesStatistics(mFixturesFinished);
-	// await syncFixturesEvents(mFixturesFinished);
-	// await syncFixturesPlayersStatistics(mFixturesFinished);
-	// await syncFixturesPredictions(params.leagues); // depends on standings
-	// await syncCoaches(params.leagues); // depends on standings
-	// await syncFixturesOdds(params.leagues); // depends on standings
+	await syncTeamStatistics(params.leagues, mFixturesFinished);
+	await syncStandings(params.leagues, mFixturesFinished);
+	await syncFixturesHeadToHead(params.leagues); // depends on standings
+	await syncFixturesStatistics(mFixturesFinished);
+	await syncFixturesEvents(mFixturesFinished);
+	await syncFixturesPlayersStatistics(mFixturesFinished);
+	await syncFixturesPredictions(params.leagues); // depends on standings
+	await syncCoaches(params.leagues); // depends on standings
+	await syncFixturesOdds(params.leagues); // depends on standings
 
 	console.log('===synced===');
 }
