@@ -1,6 +1,7 @@
 const express = require('express');
 const { body, param, validationResult } = require('express-validator');
 
+const logger = require('../lib/logger');
 const Channel = require('../models/app/Channel');
 const Language = require('../models/app/Language');
 const Team = require('../models/api_sports/football/Team');
@@ -22,6 +23,7 @@ const router = express.Router();
 			res.send(models);
 		} catch (err) {
 			console.log(err);
+			logger.error(err);
 			res.status(500).send({errors: [{ msg: err }]});
 		}
 	}
@@ -61,6 +63,7 @@ const router = express.Router();
 			res.send(model);
 		} catch (err) {
 			console.log(err);
+			logger.error(err);
 			res.status(500).send({errors: [{ msg: err }]});
 		}
 	}
@@ -102,6 +105,7 @@ const router = express.Router();
 			res.send(model);
 		} catch (err) {
 			console.log(err);
+			logger.error(err);
 			res.status(500).send({errors: [{ msg: err }]});
 		}
 	}
@@ -125,6 +129,7 @@ const router = express.Router();
 			res.send();
 		} catch (err) {
 			console.log(err);
+			logger.error(err);
 			res.status(500).send({errors: [{ msg: err }]});
 		}
 	}

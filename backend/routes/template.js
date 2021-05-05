@@ -1,6 +1,7 @@
 const express = require('express');
 const { body, param, validationResult } = require('express-validator');
 
+const logger = require('../lib/logger');
 const Template = require('../models/app/Template');
 
 const router = express.Router();
@@ -17,6 +18,7 @@ const router = express.Router();
 			res.send(models);
 		} catch (err) {
 			console.log(err);
+			logger.error(err);
 			res.status(500).send({errors: [{ msg: err }]});
 		}
 	}
@@ -44,6 +46,7 @@ const router = express.Router();
 			res.send(model);
 		} catch (err) {
 			console.log(err);
+			logger.error(err);
 			res.status(500).send({errors: [{ msg: err }]});
 		}
 	}
@@ -73,6 +76,7 @@ const router = express.Router();
 			res.send(model);
 		} catch (err) {
 			console.log(err);
+			logger.error(err);
 			res.status(500).send({errors: [{ msg: err }]});
 		}
 	}
@@ -96,6 +100,7 @@ const router = express.Router();
 			res.send();
 		} catch (err) {
 			console.log(err);
+			logger.error(err);
 			res.status(500).send({errors: [{ msg: err }]});
 		}
 	}

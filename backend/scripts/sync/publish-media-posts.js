@@ -5,6 +5,7 @@
 // setup path for env file in order for script to work in production
 require('dotenv').config({ path: `${__dirname}/../../../.env` });
 
+const bunyan = require('bunyan');
 const moment = require('moment');
 const nodeHtmlToImageLib = require('node-html-to-image');
 const TelegramBot = require('node-telegram-bot-api');
@@ -14,6 +15,17 @@ const Channel = require('../../models/app/Channel');
 const ScheduledPost = require('../../models/app/ScheduledPost');
 const SocialMediaPlatform = require('../../models/app/SocialMediaPlatform');
 const Template = require('../../models/app/Template');
+
+// create logger
+const logger = bunyan.createLogger({
+    name: __filename,
+    streams: [{
+        type: 'rotating-file',
+        path: `${__dirname}/../../../log/publish-media-posts.log`,
+        period: '1d', // daily rotation
+        count: 7, // keep 7 back copies
+    }]
+});
 
 // prepare telegram bot for posting news
 const telegramBot = new TelegramBot(process.env.TELEGRAM_BOT_API_TOKEN);
@@ -67,11 +79,13 @@ async function run() {
 			await mScheduledPost.save();
 		}
 
-		// show success message
-		console.log('===published successfully===');
+		// log success
+		logger.info('media posts published successfully');
+
 	} catch (err) {
 		console.log('===ERROR===');
 		console.log(err);
+		logger.error(err);
 	} finally {
 		dbConn.close();
 	}

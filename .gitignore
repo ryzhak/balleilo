@@ -26,3 +26,7 @@ yarn-error.log*
 # media assets
 backend/assets/media_posts/*
 !backend/assets/media_posts/.gitkeep
+
+# log files
+log/*
+!log/.gitkeep

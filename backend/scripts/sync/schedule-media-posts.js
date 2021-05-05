@@ -5,6 +5,7 @@
 // setup path for env file in order for script to work in production
 require('dotenv').config({ path: `${__dirname}/../../../.env` });
 
+const bunyan = require('bunyan');
 const objectHashLib = require('object-hash');
 const moment = require('moment');
 
@@ -13,6 +14,17 @@ const Team = require('../../models/api_sports/football/Team');
 const Channel = require('../../models/app/Channel');
 const ScheduledPost = require('../../models/app/ScheduledPost');
 const Template = require('../../models/app/Template');
+
+// create logger
+const logger = bunyan.createLogger({
+    name: __filename,
+    streams: [{
+        type: 'rotating-file',
+        path: `${__dirname}/../../../log/schedule-media-posts.log`,
+        period: '1d', // daily rotation
+        count: 7, // keep 7 back copies
+    }]
+});
 
 /**
  * Main function
@@ -57,11 +69,13 @@ async function run() {
 			}
 		}
 
-		// show success message
-		console.log('===scheduled successfully===');
+		// log success
+		logger.info('media posts scheduled successfully');
+
 	} catch (err) {
 		console.log('===ERROR===');
 		console.log(err);
+		logger.error(err);
 	} finally {
 		dbConn.close();
 	}

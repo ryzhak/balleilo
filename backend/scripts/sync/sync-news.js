@@ -1,6 +1,7 @@
 // setup path for env file in order for script to work in production
 require('dotenv').config({ path: `${__dirname}/../../../.env` });
 
+const bunyan = require('bunyan');
 const moment = require('moment');
 const Parser = require('rss-parser');
 const db = require('../../lib/db');
@@ -15,6 +16,17 @@ const parser = new Parser({
 			'tags'
 		]
 	}
+});
+
+// create logger
+const logger = bunyan.createLogger({
+    name: __filename,
+    streams: [{
+        type: 'rotating-file',
+        path: `${__dirname}/../../../log/sync-news.log`,
+        period: '1d', // daily rotation
+        count: 7, // keep 7 back copies
+    }]
 });
 
 /**
@@ -46,9 +58,14 @@ async function run() {
 				}
 			}
 		}
+
+		// log success
+		logger.info('news synced successfully');
+		
 	} catch (err) {
 		console.log('===Error===');
 		console.log(err);
+		logger.error(err);
 	} finally {
 		dbConn.close();
 	}

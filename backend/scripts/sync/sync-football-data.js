@@ -6,9 +6,22 @@
 // setup path for env file in order for script to work in production
 require('dotenv').config({ path: `${__dirname}/../../../.env` });
 
+const bunyan = require('bunyan');
+
 const apiSports = require('../../lib/apiSports/apiSports');
 const db = require('../../lib/db');
 const Parser = require('../../models/app/Parser');
+
+// create logger
+const logger = bunyan.createLogger({
+    name: __filename,
+    streams: [{
+        type: 'rotating-file',
+        path: `${__dirname}/../../../log/sync-football-data.log`,
+        period: '1d', // daily rotation
+        count: 7, // keep 7 back copies
+    }]
+});
 
 /**
  * Main function
@@ -34,9 +47,13 @@ async function run() {
 		// sync football data
 		await apiSports.sync('football', params);
 		
+		// log success
+		logger.info('football data synced successfully');
+
 	} catch (err) {
 		console.log('===ERROR===');
 		console.log(err);
+		logger.error(err);
 	} finally {
 		dbConn.close();
 	}
